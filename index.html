@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashita – Control de Medicación</title>
+  <meta name="description" content="App simple para llevar el control de dosis de Dashita" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--bg:#0b1020;--card:#131a2e;--muted:#8ea0c5;--text:#eaf0ff;--accent:#7dd3fc;--ok:#22c55e;--warn:#f59e0b}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;background:linear-gradient(180deg,#0b1020,#0b1226 35%,#0a1533);color:var(--text)}
+    .wrap{max-width:1000px;margin:0 auto;padding:24px}
+    .card{background:rgba(19,26,46,.9);border:1px solid rgba(125,211,252,.25);backdrop-filter:saturate(130%) blur(6px);border-radius:18px;box-shadow:0 10px 30px rgba(12,20,46,.35)}
+    header.card{display:flex;gap:20px;align-items:center;padding:18px 18px}
+    header img{width:110px;height:110px;object-fit:cover;border-radius:14px;border:2px solid rgba(125,211,252,.5);box-shadow:0 6px 16px rgba(9,10,40,.4)}
+    h1{margin:0;font-size:28px;line-height:1.1}
+    .badge{display:inline-flex;align-items:center;gap:8px;background:rgba(125,211,252,.12);border:1px solid rgba(125,211,252,.35);color:var(--accent);padding:6px 10px;border-radius:999px;font-weight:600;font-size:13px}
+    .grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:16px}
+    @media (min-width:880px){.grid{grid-template-columns:1.2fr .8fr}}
+    .panel{padding:18px}
+    .panel h2{margin:0 0 10px 0;font-size:18px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    label{font-size:13px;color:var(--muted)}
+    input,button{font:inherit}
+    input[type="date"],input[type="time"],button{background:#0f1528;border:1px solid rgba(142,160,197,.35);color:var(--text);padding:10px 12px;border-radius:10px}
+    button{cursor:pointer}
+    button.primary{background:linear-gradient(180deg,#29a3da,#1b83b3);border:0}
+    button.ghost{background:transparent}
+    button.warn{background:linear-gradient(180deg,#f59e0b,#d97706);border:0}
+    button.ok{background:linear-gradient(180deg,#22c55e,#16a34a);border:0}
+    .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+    .kpi{background:#0f1528;border:1px dashed rgba(142,160,197,.35);border-radius:12px;padding:12px;text-align:center}
+    .kpi b{font-size:20px}
+    .schedule{margin-top:14px}
+    .day{border:1px solid rgba(142,160,197,.25);border-radius:14px;margin-bottom:12px;overflow:hidden}
+    .day header{display:flex;justify-content:space-between;align-items:center;background:#101734;padding:10px 14px}
+    .day header h3{margin:0;font-size:15px}
+    .dose{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-top:1px solid rgba(142,160,197,.15)}
+    .dose small{color:var(--muted)}
+    .dose input{width:20px;height:20px}
+    .footer{opacity:.8;font-size:12px;margin-top:10px}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#0f1528;border:1px solid rgba(142,160,197,.35)}
+    .muted{color:var(--muted)}
+    .notice{font-size:12px;color:var(--muted);margin-top:6px}
+    a.btnLink{color:var(--accent);text-decoration:none;border-bottom:1px dashed rgba(125,211,252,.6)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="card">
+      <img src="./dashita.jpg" alt="Dashita" onerror="this.src='https://placehold.co/220x220?text=Dashita'" />
+      <div>
+        <div class="badge">🐶 Dashita • Control de Medicación</div>
+        <h1>Pauta: 3/4 c/12h × 2 días → 3/4 c/24h × 2 días → 1/4 c/24h × 2 días</h1>
+        <div class="notice">Inicio por defecto a las <b>09:00</b>. Puedes ajustar la fecha y hora abajo; el progreso se guarda automáticamente en tu navegador.</div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="panel card">
+        <h2>Configuración</h2>
+        <div class="row">
+          <div>
+            <label>Fecha de inicio</label><br>
+            <input type="date" id="startDate" />
+          </div>
+          <div>
+            <label>Hora de inicio</label><br>
+            <input type="time" id="startTime" />
+          </div>
+          <div style="align-self:end;display:flex;gap:8px">
+            <button class="primary" id="regen">Regenerar plan</button>
+            <button class="ghost" id="resetChecks" title="Borra solo los checks">Borrar checks</button>
+          </div>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><div class="muted">Total de dosis</div><b id="kpiDoses">0</b></div>
+          <div class="kpi"><div class="muted">Tabletas totales</div><b id="kpiTabs">0</b></div>
+          <div class="kpi"><div class="muted">Fin estimado</div><b id="kpiEnd">—</b></div>
+        </div>
+      </section>
+
+      <section class="panel card">
+        <h2>Acciones</h2>
+        <div class="row">
+          <button id="exportIcs" class="ok">Exportar Calendario (.ics)</button>
+          <button id="exportCsv" class="ok">Exportar CSV</button>
+          <button id="print" class="warn">Imprimir</button>
+        </div>
+        <p class="footer">Consejo: agrega esta página a tu pantalla de inicio en el celular para acceso rápido.
+          <br>Repositorio sugerido: <span class="pill">dashita-meds</span>
+        </p>
+      </section>
+    </div>
+
+    <section class="panel card schedule">
+      <h2>Calendario de tomas</h2>
+      <div id="schedule"></div>
+      <div class="footer muted">* Dosis: Fase 1 = 0.75; Fase 2 = 0.75; Fase 3 = 0.25. Total esperado = 5 tabletas.</div>
+    </section>
+
+    <p class="footer muted">Hecho con ❤️ para Dashita.</p>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'dashita_meds_v2';
+
+    const phases = [
+      { days: 2, intervalHours: 12, dose: 0.75, label: 'Fase 1 (0.75 c/12h)' },
+      { days: 2, intervalHours: 24, dose: 0.75, label: 'Fase 2 (0.75 c/24h)' },
+      { days: 2, intervalHours: 24, dose: 0.25, label: 'Fase 3 (0.25 c/24h)' },
+    ];
+
+    const $ = (sel) => document.querySelector(sel);
+    const scheduleDiv = $('#schedule');
+    const startDateInput = $('#startDate');
+    const startTimeInput = $('#startTime');
+
+    function pad(n){return String(n).padStart(2,'0')}
+    function fmtDate(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+    function fmtTime(d){return `${pad(d.getHours())}:${pad(d.getMinutes())}`}
+    function fmtHuman(d){
+      const days=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+      return `${days[d.getDay()]} ${pad(d.getDate())}/${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+    }
+
+    function loadState(){
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {} } catch { return {} }
+    }
+    function saveState(state){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function defaultStart(){
+      const now = new Date();
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
+      return d;
+    }
+
+    function computeSchedule(start){
+      const out = [];
+      let t = new Date(start);
+      for (const ph of phases){
+        const dosesPerDay = 24 / ph.intervalHours;
+        const numDoses = ph.days * dosesPerDay;
+        for (let i=0;i<numDoses;i++){
+          out.push({ when: new Date(t), dose: ph.dose, phase: ph.label });
+          t = new Date(t.getTime() + ph.intervalHours*60*60*1000);
+        }
+      }
+      return out;
+    }
+
+    function groupByDay(items){
+      const days = [];
+      let currentDayStart = new Date(items[0].when.getFullYear(), items[0].when.getMonth(), items[0].when.getDate());
+      let current = { title: `Día 1`, items: [], start: currentDayStart };
+      let dayIndex = 1;
+      for (const it of items){
+        const d0 = new Date(it.when.getFullYear(), it.when.getMonth(), it.when.getDate());
+        const diffDays = Math.floor((d0 - currentDayStart) / (24*60*60*1000));
+        if (diffDays + 1 !== dayIndex){
+          days.push(current);
+          while (dayIndex < diffDays + 1){
+            dayIndex++;
+            current = { title: `Día ${dayIndex}`, items: [], start: new Date(current.start.getTime()+24*60*60*1000)};
+          }
+          currentDayStart = d0;
+        }
+        current.items.push(it);
+      }
+      days.push(current);
+      return days;
+    }
+
+    function render(){
+      const state = loadState();
+      const start = state.start ? new Date(state.start) : defaultStart();
+      startDateInput.value = fmtDate(start);
+      startTimeInput.value = fmtTime(start);
+
+      const items = computeSchedule(start);
+      const days = groupByDay(items);
+
+      const totalTabs = items.reduce((s,i)=>s + i.dose, 0);
+      document.getElementById('kpiDoses').textContent = items.length;
+      document.getElementById('kpiTabs').textContent = totalTabs.toFixed(2);
+      document.getElementById('kpiEnd').textContent = fmtHuman(items[items.length-1].when);
+
+      scheduleDiv.innerHTML = '';
+      days.forEach((day)=>{
+        const dayEl = document.createElement('div');
+        dayEl.className = 'day';
+        const dateLabel = fmtHuman(day.items[0].when).split(' ');
+        const dateText = `${dateLabel[0]} ${dateLabel[1]}/${dateLabel[2]}`;
+        dayEl.innerHTML = `<header><h3>${day.title} • <span class="muted">${dateText}</span></h3>
+          <div class="pill">Dosis hoy: ${day.items.reduce((s,i)=>s+i.dose,0)} tab</div></header>`;
+        day.items.forEach((it)=>{
+          const id = `d_${it.when.getTime()}`;
+          const checked = state[id] ? 'checked' : '';
+          const dose = it.dose.toLocaleString('es-CO', {maximumFractionDigits:2});
+          const row = document.createElement('div');
+          row.className = 'dose';
+          row.innerHTML = `
+            <div>
+              <div><b>${fmtTime(it.when)}</b> <small>(${it.phase})</small></div>
+              <small>${fmtHuman(it.when)}</small>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span class=\"pill\">${dose} tab</span>
+              <input type=\"checkbox\" id=\"${id}\" ${checked} />
+            </div>`;
+          row.querySelector('input').addEventListener('change', (e)=>{
+            const st = loadState();
+            st[id] = e.target.checked;
+            saveState(st);
+          });
+          dayEl.appendChild(row);
+        });
+        scheduleDiv.appendChild(dayEl);
+      });
+    }
+
+    function regen(){
+      const d = startDateInput.value ? new Date(startDateInput.value) : new Date();
+      const [hh,mm] = (startTimeInput.value || '09:00').split(':').map(Number);
+      d.setHours(hh, mm||0, 0, 0);
+      const state = loadState();
+      saveState({ start: d.toISOString() });
+      render();
+    }
+
+    document.getElementById('regen').addEventListener('click', regen);
+    document.getElementById('resetChecks').addEventListener('click', ()=>{
+      const st = loadState();
+      saveState({ start: st.start });
+      render();
+    });
+
+    document.getElementById('exportCsv').addEventListener('click', ()=>{
+      const st = loadState();
+      const start = st.start ? new Date(st.start) : defaultStart();
+      const items = computeSchedule(start);
+      let csv = 'fecha_hora,dosis_tableta,fase,completado
+';
+      for(const it of items){
+        const id = `d_${it.when.getTime()}`;
+        const done = st[id] ? 'sí' : 'no';
+        csv += `${it.when.toISOString()},${it.dose},"${it.phase}",${done}
+`;
+      }
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'dashita_medicacion.csv'; a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('print').addEventListener('click', ()=> window.print());
+
+    // Exportar a iCalendar (.ics) con alertas -10 min y a la hora exacta
+    function toIcsDate(dt){
+      const z = new Date(dt.getTime() - dt.getTimezoneOffset()*60000); // -> UTC
+      const y = z.getUTCFullYear();
+      const m = String(z.getUTCMonth()+1).padStart(2,'0');
+      const d = String(z.getUTCDate()).padStart(2,'0');
+      const hh = String(z.getUTCHours()).padStart(2,'0');
+      const mm = String(z.getUTCMinutes()).padStart(2,'0');
+      const ss = '00';
+      return `${y}${m}${d}T${hh}${mm}${ss}Z`;
+    }
+    function exportICS(){
+      const st = loadState();
+      const start = st.start ? new Date(st.start) : defaultStart();
+      const items = computeSchedule(start);
+      const now = new Date();
+      const dtstamp = toIcsDate(now);
+      const lines = [
+        'BEGIN:VCALENDAR',
+        'PRODID:-//Dashita Meds//mx//ES',
+        'VERSION:2.0',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH'
+      ];
+      for(const it of items){
+        const begin = toIcsDate(it.when);
+        const end = toIcsDate(new Date(it.when.getTime() + 5*60000));
+        const uid = `dashita-${it.when.getTime()}@app`;
+        const summary = `Dashita: ${it.dose} tab – ${it.phase}`;
+        lines.push('BEGIN:VEVENT');
+        lines.push(`UID:${uid}`);
+        lines.push(`DTSTAMP:${dtstamp}`);
+        lines.push(`DTSTART:${begin}`);
+        lines.push(`DTEND:${end}`);
+        lines.push(`SUMMARY:${summary}`);
+        lines.push('BEGIN:VALARM');
+        lines.push('ACTION:DISPLAY');
+        lines.push('DESCRIPTION:Recordatorio de medicación');
+        lines.push('TRIGGER:-PT10M');
+        lines.push('END:VALARM');
+        lines.push('BEGIN:VALARM');
+        lines.push('ACTION:DISPLAY');
+        lines.push('DESCRIPTION:Hora de la dosis');
+        lines.push('TRIGGER:PT0S');
+        lines.push('END:VALARM');
+        lines.push('END:VEVENT');
+      }
+      lines.push('END:VCALENDAR');
+      const blob = new Blob([lines.join('
+')], {type:'text/calendar;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'dashita_meds.ics'; a.click();
+      URL.revokeObjectURL(url);
+    }
+    document.getElementById('exportIcs').addEventListener('click', exportICS);
+
+    // Inicializar
+    (function init(){
+      const st = loadState();
+      if(!st.start){ st.start = defaultStart().toISOString(); saveState(st); }
+      const d = new Date(st.start);
+      startDateInput.value = fmtDate(d);
+      startTimeInput.value = fmtTime(d);
+      render();
+    })();
+  </script>
+</body>
+</html>
