@@ -46,7 +46,7 @@
     .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#0f1528;border:1px solid rgba(142,160,197,.35)}
     .muted{color:var(--muted)}
     .notice{font-size:12px;color:var(--muted);margin-top:6px}
-    a.btnLink{color:var(--accent);text-decoration:none;border-bottom:1px dashed rgba(125,211,252,.6)}
+    .toast{position:fixed;right:16px;bottom:16px;background:#0f1528;border:1px solid rgba(142,160,197,.4);padding:10px 14px;border-radius:12px;box-shadow:0 6px 16px rgba(0,0,0,.35);display:none}
   </style>
 </head>
 <body>
@@ -56,7 +56,7 @@
       <div>
         <div class="badge">🐶 Dashita • Control de Medicación</div>
         <h1>Pauta: 3/4 c/12h × 2 días → 3/4 c/24h × 2 días → 1/4 c/24h × 2 días</h1>
-        <div class="notice">Inicio por defecto a las <b>09:00</b>. Puedes ajustar la fecha y hora abajo; el progreso se guarda automáticamente en tu navegador.</div>
+        <div class="notice">Inicio por defecto a las <b>09:00</b>. Ajusta fecha/hora abajo; el progreso se guarda en tu navegador.</div>
       </div>
     </header>
 
@@ -91,45 +91,53 @@
           <button id="exportCsv" class="ok">Exportar CSV</button>
           <button id="print" class="warn">Imprimir</button>
         </div>
-        <p class="footer">Consejo: agrega esta página a tu pantalla de inicio en el celular para acceso rápido.
-          <br>Repositorio sugerido: <span class="pill">dashita-meds</span>
-        </p>
+        <p class="footer">Consejo: agrega esta página a tu pantalla de inicio en el celular para acceso rápido.</p>
       </section>
     </div>
 
     <section class="panel card schedule">
-      <h2>Calendario de tomas</h2>
+      <h2>Calendario de tomas (marcar cuando se administre)</h2>
       <div id="schedule"></div>
-      <div class="footer muted">* Dosis: Fase 1 = 0.75; Fase 2 = 0.75; Fase 3 = 0.25. Total esperado = 5 tabletas.</div>
+      <div class="footer muted">* Fase 1 = 0.75; Fase 2 = 0.75; Fase 3 = 0.25. Total esperado = 5 tabletas.</div>
     </section>
 
     <p class="footer muted">Hecho con ❤️ para Dashita.</p>
   </div>
 
+  <div id="toast" class="toast"></div>
+
   <script>
-    const STORAGE_KEY = 'dashita_meds_v2';
+    "use strict";
+    const STORAGE_KEY = "dashita_meds_v4";
 
     const phases = [
-      { days: 2, intervalHours: 12, dose: 0.75, label: 'Fase 1 (0.75 c/12h)' },
-      { days: 2, intervalHours: 24, dose: 0.75, label: 'Fase 2 (0.75 c/24h)' },
-      { days: 2, intervalHours: 24, dose: 0.25, label: 'Fase 3 (0.25 c/24h)' },
+      { days: 2, intervalHours: 12, dose: 0.75, label: "Fase 1 (0.75 c/12h)" },
+      { days: 2, intervalHours: 24, dose: 0.75, label: "Fase 2 (0.75 c/24h)" },
+      { days: 2, intervalHours: 24, dose: 0.25, label: "Fase 3 (0.25 c/24h)" },
     ];
 
     const $ = (sel) => document.querySelector(sel);
-    const scheduleDiv = $('#schedule');
-    const startDateInput = $('#startDate');
-    const startTimeInput = $('#startTime');
+    const scheduleDiv = $("#schedule");
+    const startDateInput = $("#startDate");
+    const startTimeInput = $("#startTime");
+    const toast = $("#toast");
 
-    function pad(n){return String(n).padStart(2,'0')}
-    function fmtDate(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
-    function fmtTime(d){return `${pad(d.getHours())}:${pad(d.getMinutes())}`}
+    function pad(n){return String(n).padStart(2,"0");}
+    function fmtDate(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
+    function fmtTime(d){return `${pad(d.getHours())}:${pad(d.getMinutes())}`;}
     function fmtHuman(d){
-      const days=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
-      return `${days[d.getDay()]} ${pad(d.getDate())}/${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+      const days=["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+      return `${days[d.getDay()]} ${pad(d.getDate())}/${pad(d.getMonth()+1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function showToast(msg){
+      toast.textContent = msg;
+      toast.style.display = "block";
+      setTimeout(()=>toast.style.display="none", 2500);
     }
 
     function loadState(){
-      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {} } catch { return {} }
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch { return {}; }
     }
     function saveState(state){
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -137,8 +145,7 @@
 
     function defaultStart(){
       const now = new Date();
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
-      return d;
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
     }
 
     function computeSchedule(start){
@@ -156,24 +163,17 @@
     }
 
     function groupByDay(items){
-      const days = [];
-      let currentDayStart = new Date(items[0].when.getFullYear(), items[0].when.getMonth(), items[0].when.getDate());
-      let current = { title: `Día 1`, items: [], start: currentDayStart };
-      let dayIndex = 1;
-      for (const it of items){
-        const d0 = new Date(it.when.getFullYear(), it.when.getMonth(), it.when.getDate());
-        const diffDays = Math.floor((d0 - currentDayStart) / (24*60*60*1000));
-        if (diffDays + 1 !== dayIndex){
-          days.push(current);
-          while (dayIndex < diffDays + 1){
-            dayIndex++;
-            current = { title: `Día ${dayIndex}`, items: [], start: new Date(current.start.getTime()+24*60*60*1000)};
-          }
-          currentDayStart = d0;
-        }
-        current.items.push(it);
+      const map = new Map();
+      for(const it of items){
+        const key = `${it.when.getFullYear()}-${it.when.getMonth()}-${it.when.getDate()}`;
+        if(!map.has(key)) map.set(key, []);
+        map.get(key).push(it);
       }
-      days.push(current);
+      const days = [];
+      let i=1;
+      for(const [, arr] of map){
+        days.push({ title: `Día ${i++}`, items: arr.sort((a,b)=>a.when-b.when) });
+      }
       return days;
     }
 
@@ -187,34 +187,33 @@
       const days = groupByDay(items);
 
       const totalTabs = items.reduce((s,i)=>s + i.dose, 0);
-      document.getElementById('kpiDoses').textContent = items.length;
-      document.getElementById('kpiTabs').textContent = totalTabs.toFixed(2);
-      document.getElementById('kpiEnd').textContent = fmtHuman(items[items.length-1].when);
+      $("#kpiDoses").textContent = items.length;
+      $("#kpiTabs").textContent = totalTabs.toFixed(2);
+      $("#kpiEnd").textContent = fmtHuman(items[items.length-1].when);
 
-      scheduleDiv.innerHTML = '';
+      scheduleDiv.innerHTML = "";
       days.forEach((day)=>{
-        const dayEl = document.createElement('div');
-        dayEl.className = 'day';
-        const dateLabel = fmtHuman(day.items[0].when).split(' ');
-        const dateText = `${dateLabel[0]} ${dateLabel[1]}/${dateLabel[2]}`;
+        const dayEl = document.createElement("div");
+        dayEl.className = "day";
+        const dateText = fmtHuman(day.items[0].when).split(" ").slice(0,2).join(" ");
         dayEl.innerHTML = `<header><h3>${day.title} • <span class="muted">${dateText}</span></h3>
           <div class="pill">Dosis hoy: ${day.items.reduce((s,i)=>s+i.dose,0)} tab</div></header>`;
         day.items.forEach((it)=>{
           const id = `d_${it.when.getTime()}`;
-          const checked = state[id] ? 'checked' : '';
-          const dose = it.dose.toLocaleString('es-CO', {maximumFractionDigits:2});
-          const row = document.createElement('div');
-          row.className = 'dose';
+          const checked = state[id] ? "checked" : "";
+          const dose = it.dose.toLocaleString("es-CO", {maximumFractionDigits:2});
+          const row = document.createElement("div");
+          row.className = "dose";
           row.innerHTML = `
             <div>
               <div><b>${fmtTime(it.when)}</b> <small>(${it.phase})</small></div>
               <small>${fmtHuman(it.when)}</small>
             </div>
             <div style="display:flex;align-items:center;gap:10px">
-              <span class=\"pill\">${dose} tab</span>
-              <input type=\"checkbox\" id=\"${id}\" ${checked} />
+              <label class="pill" for="${id}">${dose} tab</label>
+              <input type="checkbox" id="${id}" ${checked} />
             </div>`;
-          row.querySelector('input').addEventListener('change', (e)=>{
+          row.querySelector("input").addEventListener("change", (e)=>{
             const st = loadState();
             st[id] = e.target.checked;
             saveState(st);
@@ -227,97 +226,121 @@
 
     function regen(){
       const d = startDateInput.value ? new Date(startDateInput.value) : new Date();
-      const [hh,mm] = (startTimeInput.value || '09:00').split(':').map(Number);
-      d.setHours(hh, mm||0, 0, 0);
-      const state = loadState();
+      const parts = (startTimeInput.value || "09:00").split(":").map(Number);
+      const hh = parts[0];
+      const mm = parts[1] || 0;
+      d.setHours(hh, mm, 0, 0);
       saveState({ start: d.toISOString() });
       render();
+      showToast("Plan regenerado");
     }
 
-    document.getElementById('regen').addEventListener('click', regen);
-    document.getElementById('resetChecks').addEventListener('click', ()=>{
+    $("#regen").addEventListener("click", regen);
+    $("#resetChecks").addEventListener("click", ()=>{
       const st = loadState();
       saveState({ start: st.start });
       render();
+      showToast("Checks borrados");
     });
 
-    document.getElementById('exportCsv').addEventListener('click', ()=>{
+    $("#exportCsv").addEventListener("click", ()=>{
       const st = loadState();
       const start = st.start ? new Date(st.start) : defaultStart();
       const items = computeSchedule(start);
-      let csv = 'fecha_hora,dosis_tableta,fase,completado
-';
+      let csv = "fecha_hora,dosis_tableta,fase,completado\r\n";
       for(const it of items){
         const id = `d_${it.when.getTime()}`;
-        const done = st[id] ? 'sí' : 'no';
-        csv += `${it.when.toISOString()},${it.dose},"${it.phase}",${done}
-`;
+        const done = st[id] ? "sí" : "no";
+        csv += `${it.when.toISOString()},${it.dose},"${it.phase}",${done}\r\n`;
       }
-      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'dashita_medicacion.csv'; a.click();
+      const a = document.createElement("a");
+      a.href = url; a.download = "dashita_medicacion.csv"; a.click();
       URL.revokeObjectURL(url);
+      showToast("CSV exportado");
     });
 
-    document.getElementById('print').addEventListener('click', ()=> window.print());
+    $("#print").addEventListener("click", ()=> window.print());
 
-    // Exportar a iCalendar (.ics) con alertas -10 min y a la hora exacta
+    // --- iCalendar (.ics) export con alertas (-10 min y 0 min) ---
     function toIcsDate(dt){
       const z = new Date(dt.getTime() - dt.getTimezoneOffset()*60000); // -> UTC
       const y = z.getUTCFullYear();
-      const m = String(z.getUTCMonth()+1).padStart(2,'0');
-      const d = String(z.getUTCDate()).padStart(2,'0');
-      const hh = String(z.getUTCHours()).padStart(2,'0');
-      const mm = String(z.getUTCMinutes()).padStart(2,'0');
-      const ss = '00';
+      const m = String(z.getUTCMonth()+1).padStart(2,"0");
+      const d = String(z.getUTCDate()).padStart(2,"0");
+      const hh = String(z.getUTCHours()).padStart(2,"0");
+      const mm = String(z.getUTCMinutes()).padStart(2,"0");
+      const ss = "00";
       return `${y}${m}${d}T${hh}${mm}${ss}Z`;
     }
+
     function exportICS(){
-      const st = loadState();
-      const start = st.start ? new Date(st.start) : defaultStart();
-      const items = computeSchedule(start);
-      const now = new Date();
-      const dtstamp = toIcsDate(now);
-      const lines = [
-        'BEGIN:VCALENDAR',
-        'PRODID:-//Dashita Meds//mx//ES',
-        'VERSION:2.0',
-        'CALSCALE:GREGORIAN',
-        'METHOD:PUBLISH'
-      ];
-      for(const it of items){
-        const begin = toIcsDate(it.when);
-        const end = toIcsDate(new Date(it.when.getTime() + 5*60000));
-        const uid = `dashita-${it.when.getTime()}@app`;
-        const summary = `Dashita: ${it.dose} tab – ${it.phase}`;
-        lines.push('BEGIN:VEVENT');
-        lines.push(`UID:${uid}`);
-        lines.push(`DTSTAMP:${dtstamp}`);
-        lines.push(`DTSTART:${begin}`);
-        lines.push(`DTEND:${end}`);
-        lines.push(`SUMMARY:${summary}`);
-        lines.push('BEGIN:VALARM');
-        lines.push('ACTION:DISPLAY');
-        lines.push('DESCRIPTION:Recordatorio de medicación');
-        lines.push('TRIGGER:-PT10M');
-        lines.push('END:VALARM');
-        lines.push('BEGIN:VALARM');
-        lines.push('ACTION:DISPLAY');
-        lines.push('DESCRIPTION:Hora de la dosis');
-        lines.push('TRIGGER:PT0S');
-        lines.push('END:VALARM');
-        lines.push('END:VEVENT');
+      try{
+        const st = loadState();
+        const start = st.start ? new Date(st.start) : defaultStart();
+        const items = computeSchedule(start);
+        const now = new Date();
+        const dtstamp = toIcsDate(now);
+        const lines = [
+          "BEGIN:VCALENDAR",
+          "PRODID:-//Dashita Meds//mx//ES",
+          "VERSION:2.0",
+          "CALSCALE:GREGORIAN",
+          "METHOD:PUBLISH"
+        ];
+        for(const it of items){
+          const begin = toIcsDate(it.when);
+          const end = toIcsDate(new Date(it.when.getTime() + 5*60000));
+          const uid = `dashita-${it.when.getTime()}@app`;
+          const summary = `Dashita: ${it.dose} tab - ${it.phase}`; // usar guion ASCII para evitar caracteres raros
+          lines.push("BEGIN:VEVENT");
+          lines.push(`UID:${uid}`);
+          lines.push(`DTSTAMP:${dtstamp}`);
+          lines.push(`DTSTART:${begin}`);
+          lines.push(`DTEND:${end}`);
+          lines.push(`SUMMARY:${summary}`);
+          lines.push("BEGIN:VALARM");
+          lines.push("ACTION:DISPLAY");
+          lines.push("DESCRIPTION:Recordatorio de medicacion");
+          lines.push("TRIGGER:-PT10M");
+          lines.push("END:VALARM");
+          lines.push("BEGIN:VALARM");
+          lines.push("ACTION:DISPLAY");
+          lines.push("DESCRIPTION:Hora de la dosis");
+          lines.push("TRIGGER:PT0S");
+          lines.push("END:VALARM");
+          lines.push("END:VEVENT");
+        }
+        lines.push("END:VCALENDAR");
+        const icsText = lines.join("\r\n");
+        const blob = new Blob([icsText], {type:"text/calendar;charset=utf-8;"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = "dashita_meds.ics"; document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+        showToast(".ics exportado");
+      }catch(e){
+        console.error(e);
+        alert("No se pudo exportar el calendario. Revisa la consola del navegador.");
       }
-      lines.push('END:VCALENDAR');
-      const blob = new Blob([lines.join('
-')], {type:'text/calendar;charset=utf-8;'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'dashita_meds.ics'; a.click();
-      URL.revokeObjectURL(url);
     }
-    document.getElementById('exportIcs').addEventListener('click', exportICS);
+
+    $("#exportIcs").addEventListener("click", exportICS);
+
+    // --- Self-tests básicos para depuración ---
+    (function runSelfTests(){
+      try{
+        const start = new Date(2025,0,1,9,0,0,0); // 1 Ene 2025 09:00
+        const items = computeSchedule(start);
+        console.assert(items.length === 8, "Debe generar 8 dosis, obtuvo", items.length);
+        const totalTabs = items.reduce((s,i)=>s+i.dose,0);
+        console.assert(Math.abs(totalTabs - 5) < 1e-9, "Total tabletas debe ser 5, obtuvo", totalTabs);
+        const testLines = ["BEGIN:VCALENDAR","END:VCALENDAR"]; // prueba mínima de join
+        const joined = testLines.join("\r\n");
+        console.assert(joined.indexOf("\r\n") > -1, "El join de CRLF debe existir");
+      }catch(err){ console.warn("Self-tests fallaron:", err); }
+    })();
 
     // Inicializar
     (function init(){
