@@ -36,20 +36,23 @@
 
   <script>
     "use strict";
-    // --- Configuración fija ---
     const phases = [
       { days: 2, intervalHours: 12, dose: 0.75, label: "Fase 1 (0.75 c/12h)" },
       { days: 2, intervalHours: 24, dose: 0.75, label: "Fase 2 (0.75 c/24h)" },
       { days: 2, intervalHours: 24, dose: 0.25, label: "Fase 3 (0.25 c/24h)" }
     ];
+    const TZID = "America/Bogota";
 
     function pad(n){ return String(n).padStart(2, "0"); }
     function fmtTime(d){ return pad(d.getHours()) + ":" + pad(d.getMinutes()); }
     function fmtDate(d){ return pad(d.getDate()) + "/" + pad(d.getMonth()+1); }
+    function fmtLocalICS(d){
+      return "" + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + "T" + pad(d.getHours()) + pad(d.getMinutes()) + "00";
+    }
 
     function startToday21(){
       const now = new Date();
-      now.setHours(21,0,0,0); // hoy 21:00
+      now.setHours(21,0,0,0);
       return now;
     }
 
@@ -104,41 +107,43 @@
       });
     }
 
-    // --- Exportar .ics con dos alertas ---
-    function toIcsDate(dt){
-      // Convertir a UTC y formatear YYYYMMDDTHHMMSSZ
-      const z = new Date(dt.getTime() - dt.getTimezoneOffset()*60000);
-      const y = z.getUTCFullYear();
-      const m = String(z.getUTCMonth()+1).padStart(2, "0");
-      const d = String(z.getUTCDate()).padStart(2, "0");
-      const hh = String(z.getUTCHours()).padStart(2, "0");
-      const mm = String(z.getUTCMinutes()).padStart(2, "0");
-      const ss = "00";
-      return "" + y + m + d + "T" + hh + mm + ss + "Z";
+    function buildVTIMEZONE(){
+      return [
+        "BEGIN:VTIMEZONE",
+        "TZID:" + TZID,
+        "X-LIC-LOCATION:" + TZID,
+        "BEGIN:STANDARD",
+        "TZOFFSETFROM:-0500",
+        "TZOFFSETTO:-0500",
+        "TZNAME:COT",
+        "DTSTART:19700101T000000",
+        "END:STANDARD",
+        "END:VTIMEZONE"
+      ].join("\r\n");
     }
 
     function exportICS(){
       try{
         const items = computeSchedule(startToday21());
         const now = new Date();
-        const dtstamp = toIcsDate(now);
+        const dtstamp = fmtLocalICS(now);
         const lines = [
           "BEGIN:VCALENDAR",
           "PRODID:-//Dashita Meds//ES",
           "VERSION:2.0",
           "CALSCALE:GREGORIAN",
-          "METHOD:PUBLISH"
+          buildVTIMEZONE()
         ];
         for (const it of items){
-          const begin = toIcsDate(it.when);
-          const end = toIcsDate(new Date(it.when.getTime() + 5*60000)); // 5 min
+          const begin = fmtLocalICS(it.when);
+          const end = fmtLocalICS(new Date(it.when.getTime() + 5*60000));
           const uid = "dashita-" + it.when.getTime() + "@app";
           const summary = "Dashita: " + it.dose + " tab - " + it.phase;
           lines.push("BEGIN:VEVENT");
           lines.push("UID:" + uid);
-          lines.push("DTSTAMP:" + dtstamp);
-          lines.push("DTSTART:" + begin);
-          lines.push("DTEND:" + end);
+          lines.push("DTSTAMP;TZID=" + TZID + ":" + dtstamp);
+          lines.push("DTSTART;TZID=" + TZID + ":" + begin);
+          lines.push("DTEND;TZID=" + TZID + ":" + end);
           lines.push("SUMMARY:" + summary);
           lines.push("BEGIN:VALARM");
           lines.push("ACTION:DISPLAY");
@@ -164,11 +169,9 @@
       }
     }
 
-    // Listeners
     document.getElementById("exportIcs").addEventListener("click", exportICS);
     document.getElementById("printBtn").addEventListener("click", ()=> window.print());
 
-    // Pintar al cargar
     render();
   </script>
 </body>
